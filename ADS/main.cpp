@@ -18,6 +18,7 @@ int main()
 	
 	char buffer[1024];
 	ReadFile(file, buffer, sizeof(buffer), &len, nullptr);
+	CloseHandle(file);
 	buffer[len] = '\0';
 
 	assert(strcmp(str, buffer) == 0);
