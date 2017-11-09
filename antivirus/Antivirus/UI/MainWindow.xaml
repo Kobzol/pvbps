@@ -1,0 +1,127 @@
+﻿<Window x:Class="Antivirus.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Antivirus"
+        xmlns:ui = "clr-namespace:Antivirus.UI"
+        xmlns:scan = "clr-namespace:Antivirus.Scan"
+        mc:Ignorable="d"
+        Title="Antivirus" Width="1024" Height="600">
+    <Window.Resources>
+        <DataTemplate x:Key="NotScanned" DataType="{x:Type scan:FileScan}">
+            <TextBlock Text="Not scanned yet" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="Scanned" DataType="{x:Type scan:FileScan}">
+            <TextBlock>
+                <Run Text="{Binding PositiveResults, Mode=OneWay}"></Run>
+                <Run Text="/"></Run>
+                <Run Text="{Binding TotalResults, Mode=OneWay}"></Run>
+            </TextBlock>
+        </DataTemplate>
+    </Window.Resources>
+    <Grid Name="content">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="400*"/>
+            <ColumnDefinition Width="200"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Row="0" Grid.Column="0">
+            <Button Click="OpenFile" Content="Scan files" Width="150" HorizontalAlignment="Left" Margin="0,0,0,2"></Button>
+            <Button Click="OpenDirectory" Content="Scan directory" Width="150" HorizontalAlignment="Left"></Button>
+        </StackPanel>
+        <DockPanel Grid.Row="0" Grid.Column="1" LastChildFill="True" Margin="5">
+            <Label Content="Files" DockPanel.Dock="Top"></Label>
+            <DataGrid Name="scanGrid" DockPanel.Dock="Top" AutoGenerateColumns="false"
+                      CanUserAddRows="false" CanUserDeleteRows="false" CanUserReorderColumns="false" IsReadOnly="true" CanUserSortColumns="True"
+                      SelectionChanged="HandleGridSelection">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Hash" SortMemberPath="Hash" Width="50">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Hash}" ToolTip="{Binding Hash}"></TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Size" SortMemberPath="Size" Width="50">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Size, StringFormat={}{0} bytes}" ToolTip="{Binding Size, StringFormat={}{0} bytes}"></TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Path" SortMemberPath="Path" Width="60">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Path}" ToolTip="{Binding Path}"></TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="State" SortMemberPath="State" Width="60">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding State}" ToolTip="{Binding State}"></TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Scan report" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type scan:FileScan}">
+                                <ContentControl Content="{Binding}">
+                                    <ContentControl.Style>
+                                        <Style TargetType="{x:Type ContentControl}">
+                                            <Setter Property="ContentTemplate" Value="{StaticResource NotScanned}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsScanned}" Value="True">
+                                                    <Setter Property="ContentTemplate" Value="{StaticResource Scanned}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ContentControl.Style>
+                                </ContentControl>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Quarantine" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Click="QuarantineScan" Tag="{Binding}">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Content" Value="Lock"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding InQuarantine}" Value="True">
+                                                    <Setter Property="Content" Value="Unlock"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Remove" Width="60">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Click="RemoveScan" Content="Remove" Tag="{Binding}"></Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+        <DockPanel Grid.Row="0" Grid.Column="2">
+            <Label Content="Details" DockPanel.Dock="Top"></Label>
+            <TextBox Text="{Binding Path=SelectedScan.GetVirusTypes, Mode=OneWay}" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" DockPanel.Dock="Top"></TextBox>
+        </DockPanel>
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Vertical" VerticalAlignment="Bottom" Height="180" Margin="5">
+            <Label Content="Log" Height="30"></Label>
+            <TextBox Name="log" Height="150" TextWrapping="Wrap" IsReadOnly="true" VerticalScrollBarVisibility="Auto"></TextBox>
+        </StackPanel>
+    </Grid>
+</Window>
