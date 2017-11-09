@@ -10,28 +10,29 @@ namespace Antivirus.Crypto
 {
     public class Quarantine
     {
-        private string Path { get; }
+        private string Directory { get; }
         private string Key { get; }
 
         private RNGCryptoServiceProvider random = new RNGCryptoServiceProvider();
         private byte[] keyBytes;
         private int keySize = 256;
 
-        public Quarantine(string path, string key)
+        public Quarantine(string directory, string key)
         {
-            this.Path = path;
+            this.Directory = directory;
             this.Key = key;
             this.keyBytes = this.GetKeyBytes(key, this.keySize);
 
-            if (!Directory.Exists(path))
+            if (!System.IO.Directory.Exists(directory))
             {
-                Directory.CreateDirectory(path);
+                System.IO.Directory.CreateDirectory(directory);
             }
         }
 
         public async Task LockToQuarantine(FileScan scan)
         {
-            var path = this.GeneratePath();
+            var name = this.GenerateName();
+            var path = Path.Combine(this.Directory, name);
 
             try
             {
@@ -60,7 +61,7 @@ namespace Antivirus.Crypto
                     }
                 }
 
-                scan.QuarantinePath = path;
+                scan.QuarantinePath = name;
                 scan.InQuarantine = true;
 
                 File.Delete(scan.Path);
@@ -80,22 +81,24 @@ namespace Antivirus.Crypto
         }
         public async Task UnlockFromQuarantine(FileScan scan)
         {
+            var path = Path.Combine(this.Directory, scan.QuarantinePath);
+
             try
             {
                 if (!scan.InQuarantine)
                 {
                     throw new Exception($"Scan {scan.Path} is not in quarantine");
                 }
-                if (!File.Exists(scan.QuarantinePath))
+                if (!File.Exists(path))
                 {
-                    throw new Exception($"Quarantine file {scan.QuarantinePath} not found");
+                    throw new Exception($"Quarantine file {path} not found");
                 }
 
                 using (FileStream outStream = new FileStream(scan.Path, FileMode.Create))
-                using (FileStream inStream = new FileStream(scan.QuarantinePath, FileMode.Open))
+                using (FileStream inStream = new FileStream(path, FileMode.Open))
                 using (RijndaelManaged aes = this.CreateAES())
                 {
-                    File.SetAttributes(scan.Path, File.GetAttributes(scan.QuarantinePath));
+                    File.SetAttributes(scan.Path, File.GetAttributes(path));
 
                     aes.IV = scan.IV;
 
@@ -108,7 +111,7 @@ namespace Antivirus.Crypto
                     outStream.SetLength(scan.Size);
                 }
 
-                File.Delete(scan.QuarantinePath);
+                File.Delete(path);
 
                 scan.InQuarantine = false;
                 scan.QuarantinePath = "";
@@ -137,15 +140,15 @@ namespace Antivirus.Crypto
             return aes;
         }
 
-        private string GeneratePath()
+        private string GenerateName()
         {
             while (true)
             {
                 var name = this.CreateRandomString(8);
-                var path = System.IO.Path.Combine(this.Path, name);
+                var path = System.IO.Path.Combine(this.Directory, name);
                 if (!File.Exists(path))
                 {
-                    return path;
+                    return name;
                 }
             }
         }

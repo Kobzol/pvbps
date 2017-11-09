@@ -113,7 +113,6 @@
     <Compile Include="Net\FileReportResult.cs" />
     <Compile Include="Crypto\Quarantine.cs" />
     <Compile Include="Scan\ScanWorker.cs" />
-    <Compile Include="UI\ListToStringConverter.cs" />
     <Compile Include="Util\SubscriptionManager.cs" />
     <Page Include="UI\MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
@@ -123,7 +122,7 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Config.cs" />
+    <Compile Include="Util\Config.cs" />
     <Compile Include="UI\MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

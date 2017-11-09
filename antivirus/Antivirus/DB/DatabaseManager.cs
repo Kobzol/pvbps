@@ -9,8 +9,9 @@ namespace Antivirus.DB
 {
     public class DatabaseManager
     {
+        public string Path { get; }
+
         private MemoryStream memory;
-        private string path;
         private LiteDatabase database;
 
         private LiteCollection<FileScan> scans;
@@ -18,7 +19,7 @@ namespace Antivirus.DB
         public DatabaseManager(string path)
         {
             this.memory = new MemoryStream();
-            this.path = path;
+            this.Path = path;
 
             try
             {
@@ -43,9 +44,9 @@ namespace Antivirus.DB
             var unique = this.CreateUniqueHash(path, hash);
             return this.scans.FindOne(scan => scan.UniqueHash == unique);
         }
-        public FileScan GetScanByHash(string hash)
+        public List<FileScan> GetScansByHash(string hash)
         {
-            return this.scans.FindOne(scan => scan.Hash == hash);
+            return this.scans.Find(scan => scan.Hash == hash).ToList();
         }
 
         public List<FileScan> GetScans()
@@ -65,7 +66,7 @@ namespace Antivirus.DB
 
         public void Persist()
         {
-            File.WriteAllBytes(this.path, this.memory.ToArray());
+            File.WriteAllBytes(this.Path, this.memory.ToArray());
         }
 
         public void Remove(FileScan scan)

@@ -9,6 +9,7 @@ using Antivirus.Util;
 using System.Reactive.Linq;
 using System.Windows.Controls;
 using System.ComponentModel;
+using Antivirus.DB;
 
 namespace Antivirus.UI
 {
@@ -19,11 +20,13 @@ namespace Antivirus.UI
         public FileScan SelectedScan { get; set; }
 
         private ScanManager scanManager;
+        private DatabaseManager database;
         private SubscriptionManager subs = new SubscriptionManager();
 
-        public MainWindow(ScanManager scanManager)
+        public MainWindow(ScanManager scanManager, DatabaseManager database)
         {
             this.scanManager = scanManager;
+            this.database = database;
             this.DataContext = this;
 
             this.InitializeComponent();
@@ -132,6 +135,16 @@ namespace Antivirus.UI
         private void HandleGridSelection(object sender, SelectionChangedEventArgs e)
         {
             this.SelectedScan = this.scanGrid.SelectedItem as FileScan;
+        }
+
+        private void HandleMenuPersistDatabase(object sender, RoutedEventArgs e)
+        {
+            this.database.Persist();
+            this.Log($"Database persisted to {this.database.Path}");
+        }
+        private void HandleMenuExit(object sender, RoutedEventArgs e)
+        {
+            this.Close();
         }
     }
 }

@@ -10,6 +10,7 @@ using System.Reactive.Concurrency;
 using Antivirus.Util;
 using System.IO;
 using System.Diagnostics;
+using System.Linq;
 
 namespace Antivirus.Scan
 {
@@ -55,18 +56,11 @@ namespace Antivirus.Scan
 
                     FileScan scan = new FileScan(path, hash);
                     scan.Size = new FileInfo(path).Length;
+                    scan = this.ReconcileScan(scan);
 
-                    FileScan dbScan = this.database.GetScan(path, hash);
-                    if (dbScan == null)
+                    if (scan.State != FileState.Scanned)
                     {
-                        this.database.InsertScan(scan);
-                        this.OnScanCreated(scan);
-                        dbScan = scan;
-                    }
-
-                    if (dbScan.State != FileState.Scanned)
-                    {
-                        this.ScanAndReport(dbScan);
+                        this.ScanAndReport(scan);
                     }
                 }
                 catch (Exception e)
@@ -74,6 +68,28 @@ namespace Antivirus.Scan
                     Debug.WriteLine(e);
                 }
             }
+        }
+
+        private FileScan ReconcileScan(FileScan scan)
+        {
+            var scans = this.database.GetScansByHash(scan.Hash);
+            var existingScan = scans.Where(s => s.Path == scan.Path).ToList();
+
+            if (existingScan.Count > 0)
+            {
+                return existingScan[0];
+            }
+
+            if (scans.Count > 0) // copy scan report and state
+            {
+                scan.Report = scans[0].Report;
+                scan.State = scans[0].State;
+            }
+
+            this.database.InsertScan(scan);
+            this.OnScanCreated(scan);
+
+            return scan;
         }
 
         private void ScanAndReport(FileScan scan)

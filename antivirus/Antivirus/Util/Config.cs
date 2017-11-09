@@ -1,14 +1,14 @@
-﻿namespace Antivirus
+﻿namespace Antivirus.Util
 {
     public class Config
     {
-        public string ApiUrl { get; } = "https://www.virustotal.com/vtapi/v2/";
-        public string ApiKey { get; } = "769684866799bd6896a479fa9aa1310fb231d59a3cd39a22c8a1845afa394f1d";
+        public string ApiUrl { get; set; }
+        public string ApiKey { get; set; }
 
-        public string DatabaseFile { get; } = "scans.db";
+        public string DatabaseFile { get; set; }
 
-        public string QuarantinePath { get; } = "D:/quarantine";
-        public string QuarantineKey { get; } = "PVBPS_2017";
+        public string QuarantinePath { get; set; }
+        public string QuarantineKey { get; set; }
 
         public Config()
         {
