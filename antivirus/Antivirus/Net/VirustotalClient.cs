@@ -7,7 +7,7 @@ namespace Antivirus.Net
 {
     public class VirustotalClient
     {
-        public event Action<string> OnRequest;
+        public event Action<string> OnStatus;
 
         private RestClient client;
         private string apikey;
@@ -48,9 +48,14 @@ namespace Antivirus.Net
             return Observable.Defer<T>(() => {
                 var subject = new Subject<T>();
 
-                this.OnRequest?.Invoke(request.Resource);
+                this.OnStatus?.Invoke($"Requesting {request.Resource}");
                 this.client.ExecuteAsync<T>(request, (response, handle) =>
                 {
+                    if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+                    {
+                        this.OnStatus?.Invoke("Request limit exceeded...");
+                    }
+                    
                     if (response.IsSuccessful)
                     {
                         subject.OnNext(response.Data);

@@ -37,14 +37,14 @@ namespace Antivirus.UI
             this.UpdateScans(this.scanManager.Scans);
             this.scanManager.OnScanCreated += this.OnScanCreated;
             this.scanManager.OnScanUpdated += this.OnScanUpdated;
-            this.client.OnRequest += this.OnRequest;
+            this.client.OnStatus += this.OnRequestStatus;
         }
 
-        private void OnRequest(string path)
+        private void OnRequestStatus(string path)
         {
             this.Dispatcher.Invoke(() =>
             {
-                this.Log($"URL request to {path}");
+                this.Log($"Net: {path}");
             });
         }
 
@@ -62,16 +62,12 @@ namespace Antivirus.UI
             this.Dispatcher.Invoke(() =>
             {
                 this.UpdateScans(this.scanManager.Scans);
-
-                foreach (var s in this.scanManager.Scans)
-                {
-                    Console.WriteLine($"{s.Path}: {s.Report.Id}");
-                }
             });
         }
 
         private void UpdateScans(List<FileScan> scans)
         {
+            this.scanGrid.ItemsSource = null;
             this.scanGrid.ItemsSource = scans;
             this.scanGrid.Items.Refresh();
 
