@@ -45,7 +45,7 @@ namespace Antivirus.Net
 
         private IObservable<T> Execute<T>(RestRequest request)
         {
-            return Observable.Defer<T>(() => {
+            return Observable.Defer(() => {
                 var subject = new Subject<T>();
 
                 this.OnStatus?.Invoke($"Requesting {request.Resource}");

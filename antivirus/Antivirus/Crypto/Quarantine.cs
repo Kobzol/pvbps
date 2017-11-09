@@ -147,7 +147,7 @@ namespace Antivirus.Crypto
         private RijndaelManaged CreateAES()
         {
             var aes = new RijndaelManaged();
-            aes.Padding = PaddingMode.Zeros;
+            aes.Padding = PaddingMode.PKCS7;
             aes.Mode = CipherMode.ECB;
             aes.KeySize = this.keySize;
             aes.Key = this.keyBytes.ToArray();
@@ -159,7 +159,7 @@ namespace Antivirus.Crypto
             while (true)
             {
                 var name = this.CreateRandomString(8);
-                var path = System.IO.Path.Combine(this.Directory, name);
+                var path = Path.Combine(this.Directory, name);
                 if (!File.Exists(path))
                 {
                     return name;
