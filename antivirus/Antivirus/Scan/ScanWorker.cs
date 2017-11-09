@@ -11,6 +11,7 @@ using Antivirus.Util;
 using System.IO;
 using System.Diagnostics;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace Antivirus.Scan
 {
@@ -18,6 +19,7 @@ namespace Antivirus.Scan
     {
         public event Action<FileScan> OnScanCreated;
         public event Action<FileScan> OnScanUpdated;
+        public event Action<int, FileScan> OnScanReplaced;
 
         private DatabaseManager database;
         private VirustotalClient client;
@@ -26,8 +28,10 @@ namespace Antivirus.Scan
         private Hasher hasher = new Hasher();
         private SubscriptionManager manager = new SubscriptionManager();
 
-        public ScanWorker(DatabaseManager database, VirustotalClient client, BlockingCollection<string> queue, CancellationTokenSource token)
+        List<FileScan> scans;
+        public ScanWorker(List<FileScan> scans, DatabaseManager database, VirustotalClient client, BlockingCollection<string> queue, CancellationTokenSource token)
         {
+            this.scans = scans;
             this.database = database;
             this.client = client;
             this.queue = queue;
@@ -54,11 +58,12 @@ namespace Antivirus.Scan
                     string path = this.queue.Take(this.token.Token);
                     string hash = this.hasher.HashSha256(path);
 
-                    FileScan scan = new FileScan(path, hash);
-                    scan.Size = new FileInfo(path).Length;
+                    Report report = this.database.GetOrInsertReport(hash);
+
+                    FileScan scan = new FileScan(path, report);
                     scan = this.ReconcileScan(scan);
 
-                    if (scan.State != FileState.Scanned)
+                    if (scan.Report.State != ReportState.Scanned)
                     {
                         this.ScanAndReport(scan);
                     }
@@ -72,30 +77,29 @@ namespace Antivirus.Scan
 
         private FileScan ReconcileScan(FileScan scan)
         {
-            var scans = this.database.GetScansByHash(scan.Hash);
-            var existingScan = scans.Where(s => s.Path == scan.Path).ToList();
+            var existingScan = this.database.GetScan(scan.Path);
+            scan.Size = new FileInfo(scan.Path).Length;
 
-            if (existingScan.Count > 0)
+            if (existingScan != null)
             {
-                return existingScan[0];
+                existingScan.Size = scan.Size;
+                existingScan.Report = scan.Report;
+                this.database.Update(existingScan);
+                this.OnScanReplaced?.Invoke(existingScan.Id, existingScan);
+                return existingScan;
             }
-
-            if (scans.Count > 0) // copy scan report and state
+            else
             {
-                scan.Report = scans[0].Report;
-                scan.State = scans[0].State;
+                this.database.Insert(scan);
+                this.OnScanCreated?.Invoke(scan);
+                return scan;
             }
-
-            this.database.InsertScan(scan);
-            this.OnScanCreated(scan);
-
-            return scan;
         }
 
         private void ScanAndReport(FileScan scan)
         {
             var uploadSource = Observable.If(
-                () => scan.State == FileState.WaitingForScan,
+                () => scan.Report.State == ReportState.WaitingForScan,
                 this.client.UploadFile(scan.Path)
                     .SubscribeOn(Scheduler.Default)
                     .Catch((Exception ex) => {
@@ -107,13 +111,14 @@ namespace Antivirus.Scan
 
             var reportSource = uploadSource.SelectMany(result =>
             {
-                return this.client.GetFileReport(scan.Hash)
+                return this.client.GetFileReport(scan.Report.Hash)
                 .SelectMany(report =>
                 {
-                    if (report?.ResponseCode == "-2" && scan.State == FileState.WaitingForScan)
+                    if (report?.ResponseCode == "-2" && scan.Report.State == ReportState.WaitingForScan)
                     {
-                        scan.State = FileState.QueuedForAnalysis;
-                        this.OnScanUpdated(scan);
+                        scan.Report.State = ReportState.QueuedForAnalysis;
+                        this.database.Update(scan.Report);
+                        this.OnScanUpdated?.Invoke(scan);
                     }
 
                     if (report == null || report.Scans == null)
@@ -129,11 +134,11 @@ namespace Antivirus.Scan
                 .Retry();
             });
             this.manager += reportSource
-                .Subscribe(report => {
-                    scan.Report = report;
-                    scan.State = FileState.Scanned;
-                    this.database.UpdateScan(scan);
-                    this.OnScanUpdated(scan);
+                .Subscribe(result => {
+                    scan.Report.Result = result;
+                    scan.Report.State = ReportState.Scanned;
+                    this.database.Update(scan.Report);
+                    this.OnScanUpdated?.Invoke(scan);
                 });
         }
     }

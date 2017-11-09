@@ -48,10 +48,10 @@
                       CanUserAddRows="false" CanUserDeleteRows="false" CanUserReorderColumns="false" IsReadOnly="true" CanUserSortColumns="True"
                       SelectionChanged="HandleGridSelection">
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="Hash" SortMemberPath="Hash" Width="50">
+                        <DataGridTemplateColumn Header="Hash" SortMemberPath="Report.Hash" Width="50">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Hash}" ToolTip="{Binding Hash}"></TextBlock>
+                                    <TextBlock Text="{Binding Report.Hash}" ToolTip="{Binding Report.Hash}"></TextBlock>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -69,10 +69,10 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="State" SortMemberPath="State" Width="60">
+                        <DataGridTemplateColumn Header="State" SortMemberPath="Report.State" Width="60">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding State}" ToolTip="{Binding State}"></TextBlock>
+                                    <TextBlock Text="{Binding Report.State}" ToolTip="{Binding Report.State}"></TextBlock>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -100,10 +100,16 @@
                                     <Button Click="QuarantineScan" Tag="{Binding}">
                                         <Button.Style>
                                             <Style TargetType="Button">
-                                                <Setter Property="Content" Value="Lock"/>
+                                                <Setter Property="IsEnabled" Value="False" />
+                                                <Setter Property="Content" Value="{Binding QuarantineState}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding InQuarantine}" Value="True">
-                                                        <Setter Property="Content" Value="Unlock"/>
+                                                    <DataTrigger Binding="{Binding QuarantineState}" Value="0">
+                                                        <Setter Property="IsEnabled" Value="True" />
+                                                        <Setter Property="Content" Value="Lock" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding QuarantineState}" Value="3">
+                                                        <Setter Property="IsEnabled" Value="True" />
+                                                        <Setter Property="Content" Value="Unlock" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>

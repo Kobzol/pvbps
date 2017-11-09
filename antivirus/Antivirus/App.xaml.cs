@@ -45,8 +45,9 @@ namespace Antivirus
 
         public void InitializeUI(object sender, StartupEventArgs e)
         {
-            this.MainWindow = new UI.MainWindow(this.scanManager, this.database);
+            this.MainWindow = new UI.MainWindow(this.scanManager, this.database, this.client);
             this.MainWindow.Show();
+            this.scanManager.Start();
         }
 
         private void HandleExit(object sender, ExitEventArgs e)

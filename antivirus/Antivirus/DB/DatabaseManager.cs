@@ -12,9 +12,12 @@ namespace Antivirus.DB
         public string Path { get; }
 
         private MemoryStream memory;
-        private LiteDatabase database;
+        public LiteDatabase database;
 
-        private LiteCollection<FileScan> scans;
+        public LiteCollection<FileScan> scans;
+        public LiteCollection<Report> reports;
+
+        public object Mutex { get; } = new object();
 
         public DatabaseManager(string path)
         {
@@ -34,49 +37,77 @@ namespace Antivirus.DB
             }
 
             this.database = new LiteDatabase(this.memory);
-            this.scans = this.database.GetCollection<FileScan>("filescan");
-            this.scans.EnsureIndex(scan => scan.UniqueHash);
-            this.scans.EnsureIndex(scan => scan.Hash);
+            this.scans = this.database.GetCollection<FileScan>("filescan")
+                .Include(scan => scan.Report);
+            this.scans.EnsureIndex(scan => scan.Path, true);
+
+            this.reports = this.database.GetCollection<Report>("report");
+            this.reports.EnsureIndex(report => report.Hash, true);
+
+            BsonMapper.Global
+                .Entity<FileScan>()
+                .DbRef(scan => scan.Report, "report");
         }
 
-        public FileScan GetScan(string path, string hash)
+        public FileScan GetScan(string path)
         {
-            var unique = this.CreateUniqueHash(path, hash);
-            return this.scans.FindOne(scan => scan.UniqueHash == unique);
+            return this.scans.FindOne(scan => scan.Path == path);
         }
-        public List<FileScan> GetScansByHash(string hash)
-        {
-            return this.scans.Find(scan => scan.Hash == hash).ToList();
-        }
-
         public List<FileScan> GetScans()
         {
              return this.scans.FindAll().ToList();
         }
-        public void InsertScan(FileScan scan)
+        public void Insert(FileScan scan)
         {
-            var unique = this.CreateUniqueHash(scan.Path, scan.Hash);
-            scan.UniqueHash = unique;
             this.scans.Insert(scan);
         }
-        public void UpdateScan(FileScan scan)
+        public void Update(FileScan scan)
         {
             this.scans.Update(scan);
+        }
+        public void Remove(FileScan scan)
+        {
+            lock (this.Mutex)
+            {
+                this.scans.Delete(scan.Id);
+                if (this.scans.Find(s => s.Report.Id == scan.Report.Id).Count() == 0)
+                {
+                    this.reports.Delete(scan.Report.Id);
+                }
+            }
+        }
+
+        public Report GetOrInsertReport(string hash)
+        {
+            lock (this.Mutex)
+            {
+                var report = this.reports.FindOne(r => r.Hash == hash);
+                if (report != null)
+                {
+                    return report;
+                }
+
+                report = new Report(hash);
+                this.Insert(report);
+                return report;
+            }
+        }
+        public void Insert(Report report)
+        {
+            this.reports.Insert(report);
+        }
+        public void Update(Report report)
+        {
+            this.reports.Update(report);
+        }
+        public void Remove(Report report)
+        {
+            this.reports.Insert(report);
         }
 
         public void Persist()
         {
             File.WriteAllBytes(this.Path, this.memory.ToArray());
-        }
-
-        public void Remove(FileScan scan)
-        {
-            this.scans.Delete(scan.Id);
-        }
-
-        private string CreateUniqueHash(string path, string hash)
-        {
-            return $"{path}#{hash}";
         }
     }
 }

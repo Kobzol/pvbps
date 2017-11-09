@@ -10,6 +10,7 @@ using System.Reactive.Linq;
 using System.Windows.Controls;
 using System.ComponentModel;
 using Antivirus.DB;
+using Antivirus.Net;
 
 namespace Antivirus.UI
 {
@@ -21,26 +22,37 @@ namespace Antivirus.UI
 
         private ScanManager scanManager;
         private DatabaseManager database;
+        private VirustotalClient client;
         private SubscriptionManager subs = new SubscriptionManager();
 
-        public MainWindow(ScanManager scanManager, DatabaseManager database)
+        public MainWindow(ScanManager scanManager, DatabaseManager database, VirustotalClient client)
         {
             this.scanManager = scanManager;
             this.database = database;
+            this.client = client;
             this.DataContext = this;
 
             this.InitializeComponent();
 
             this.UpdateScans(this.scanManager.Scans);
-            this.scanManager.OnScanCreated += OnScanCreated;
-            this.scanManager.OnScanUpdated += OnScanUpdated;
+            this.scanManager.OnScanCreated += this.OnScanCreated;
+            this.scanManager.OnScanUpdated += this.OnScanUpdated;
+            this.client.OnRequest += this.OnRequest;
+        }
+
+        private void OnRequest(string path)
+        {
+            this.Dispatcher.Invoke(() =>
+            {
+                this.Log($"URL request to {path}");
+            });
         }
 
         private void OnScanCreated(FileScan scan)
         {
             this.Dispatcher.Invoke(() =>
             {
-                this.Log($"Scan record of {scan.Path} created");
+                this.Log($"File record of {scan.Path} created");
                 this.UpdateScans(this.scanManager.Scans);
             });
         }
@@ -49,8 +61,12 @@ namespace Antivirus.UI
         {
             this.Dispatcher.Invoke(() =>
             {
-                this.Log($"Scan {scan.Path} updated, new state: {scan.State}");
                 this.UpdateScans(this.scanManager.Scans);
+
+                foreach (var s in this.scanManager.Scans)
+                {
+                    Console.WriteLine($"{s.Path}: {s.Report.Id}");
+                }
             });
         }
 
@@ -107,12 +123,12 @@ namespace Antivirus.UI
 
             try
             {
-                if (scan.InQuarantine)
+                if (scan.QuarantineState == Crypto.QuarantineState.InQuarantine)
                 {
                     await this.scanManager.UnlockFromQuarantine(scan);
                     this.Log($"Scan {scan.Path} restored from quarantine {scan.QuarantinePath}");
                 }
-                else
+                else if (scan.QuarantineState == Crypto.QuarantineState.NotQuarantined)
                 {
                     await this.scanManager.LockInQuarantine(scan);
                     this.Log($"Scan {scan.Path} put into quarantine {scan.QuarantinePath}");

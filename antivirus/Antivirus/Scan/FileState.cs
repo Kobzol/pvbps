@@ -1,9 +1,9 @@
 ﻿namespace Antivirus.Scan
 {
-    public enum FileState
+    public enum ReportState
     {
         WaitingForScan = 0,
-        Scanned,
-        QueuedForAnalysis
+        QueuedForAnalysis,
+        Scanned
     }
 }

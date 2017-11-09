@@ -10,12 +10,16 @@ namespace Antivirus.Crypto
 {
     public class Quarantine
     {
+        public event Action<FileScan> OnScanUpdated;
+
         private string Directory { get; }
         private string Key { get; }
 
         private RNGCryptoServiceProvider random = new RNGCryptoServiceProvider();
         private byte[] keyBytes;
         private int keySize = 256;
+
+        private object mutex = new object();
 
         public Quarantine(string directory, string key)
         {
@@ -36,14 +40,17 @@ namespace Antivirus.Crypto
 
             try
             {
-                if (scan.InQuarantine)
+                if (scan.QuarantineState != QuarantineState.NotQuarantined)
                 {
-                    throw new Exception($"Scan {scan.Path} is already in quarantine");
+                    throw new Exception($"Scan {scan.Path} is already in quarantine or is being encrypted/decrypted");
                 }
                 if (!File.Exists(scan.Path))
                 {
                     throw new Exception($"Scan file {scan.Path} not found");
                 }
+
+                scan.QuarantineState = QuarantineState.Encrypting;
+                this.OnScanUpdated?.Invoke(scan);
 
                 using (FileStream outStream = new FileStream(path, FileMode.Create))
                 using (FileStream inStream = new FileStream(scan.Path, FileMode.Open))
@@ -62,7 +69,7 @@ namespace Antivirus.Crypto
                 }
 
                 scan.QuarantinePath = name;
-                scan.InQuarantine = true;
+                scan.QuarantineState = QuarantineState.InQuarantine;
 
                 File.Delete(scan.Path);
             }
@@ -76,6 +83,8 @@ namespace Antivirus.Crypto
                 {
 
                 }
+
+                scan.QuarantineState = QuarantineState.NotQuarantined;
                 throw e;
             }
         }
@@ -85,7 +94,7 @@ namespace Antivirus.Crypto
 
             try
             {
-                if (!scan.InQuarantine)
+                if (scan.QuarantineState != QuarantineState.InQuarantine)
                 {
                     throw new Exception($"Scan {scan.Path} is not in quarantine");
                 }
@@ -93,6 +102,9 @@ namespace Antivirus.Crypto
                 {
                     throw new Exception($"Quarantine file {path} not found");
                 }
+
+                scan.QuarantineState = QuarantineState.Decrypting;
+                this.OnScanUpdated?.Invoke(scan);
 
                 using (FileStream outStream = new FileStream(scan.Path, FileMode.Create))
                 using (FileStream inStream = new FileStream(path, FileMode.Open))
@@ -113,7 +125,7 @@ namespace Antivirus.Crypto
 
                 File.Delete(path);
 
-                scan.InQuarantine = false;
+                scan.QuarantineState = QuarantineState.NotQuarantined;
                 scan.QuarantinePath = "";
             }
             catch (Exception e)
@@ -126,6 +138,8 @@ namespace Antivirus.Crypto
                 {
 
                 }
+
+                scan.QuarantineState = QuarantineState.InQuarantine;
                 throw e;
             }
         }

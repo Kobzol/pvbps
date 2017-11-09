@@ -26,6 +26,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -103,11 +104,13 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Crypto\Hasher.cs" />
+    <Compile Include="Crypto\QuarantineState.cs" />
     <Compile Include="DB\DatabaseManager.cs" />
     <Compile Include="Scan\FileScan.cs" />
     <Compile Include="Net\Comment.cs" />
     <Compile Include="Net\CommentResult.cs" />
     <Compile Include="Scan\FileState.cs" />
+    <Compile Include="Scan\Report.cs" />
     <Compile Include="Scan\ScanManager.cs" />
     <Compile Include="Net\AntivirusResult.cs" />
     <Compile Include="Net\FileReportResult.cs" />

@@ -7,6 +7,8 @@ namespace Antivirus.Net
 {
     public class VirustotalClient
     {
+        public event Action<string> OnRequest;
+
         private RestClient client;
         private string apikey;
 
@@ -45,6 +47,8 @@ namespace Antivirus.Net
         {
             return Observable.Defer<T>(() => {
                 var subject = new Subject<T>();
+
+                this.OnRequest?.Invoke(request.Resource);
                 this.client.ExecuteAsync<T>(request, (response, handle) =>
                 {
                     if (response.IsSuccessful)

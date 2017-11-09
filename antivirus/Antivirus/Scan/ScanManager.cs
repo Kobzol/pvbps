@@ -32,8 +32,13 @@ namespace Antivirus.Scan
             this.quarantine = quarantine;
             this.Scans = scans;
 
+            this.quarantine.OnScanUpdated += scan => this.OnScanUpdated?.Invoke(scan);
+        }
+
+        public void Start()
+        {
             this.InitializeWorkers();
-            this.InsertNotScannedScans(scans);
+            this.InsertNotScannedScans(this.Scans);
         }
 
         public void ScanFiles(List<string> files)
@@ -47,13 +52,13 @@ namespace Antivirus.Scan
         public async Task LockInQuarantine(FileScan scan)
         {
             await this.quarantine.LockToQuarantine(scan);
-            this.database.UpdateScan(scan);
+            this.database.Update(scan);
             this.database.Persist();
         }
         public async Task UnlockFromQuarantine(FileScan scan)
         {
             await this.quarantine.UnlockFromQuarantine(scan);
-            this.database.UpdateScan(scan);
+            this.database.Update(scan);
             this.database.Persist();
         }
 
@@ -77,18 +82,32 @@ namespace Antivirus.Scan
             for (int i = 0; i < 4; i++)
             {
                 CancellationTokenSource token = new CancellationTokenSource();
-                ScanWorker worker = new ScanWorker(this.database, this.client, this.scanQueue, token);
+                ScanWorker worker = new ScanWorker(this.Scans, this.database, this.client, this.scanQueue, token);
                 this.workers.Add(worker);
-                worker.Start();
                 worker.OnScanCreated += this.CreateScan;
                 worker.OnScanUpdated += this.UpdateScan;
+                worker.OnScanReplaced += this.ReplaceScan;
+                worker.Start();
             }
+        }
+
+        private void ReplaceScan(int id, FileScan scan)
+        {
+            lock (this.mutex)
+            {
+                int index = this.Scans.FindIndex(s => s.Id == id);
+                if (index != -1)
+                {
+                    this.Scans[index] = scan;
+                }
+            }
+            this.OnScanUpdated?.Invoke(scan);
         }
 
         private void InsertNotScannedScans(List<FileScan> scans)
         {
             this.ScanFiles(scans
-                .Where(scan => scan.State == FileState.WaitingForScan)
+                .Where(scan => scan.Report.State != ReportState.Scanned)
                 .Select(scan => scan.Path).ToList());
         }
 
@@ -99,11 +118,11 @@ namespace Antivirus.Scan
                 this.Scans.Add(scan);
             }
 
-            this.OnScanCreated(scan);
+            this.OnScanCreated?.Invoke(scan);
         }
         private void UpdateScan(FileScan scan)
         {
-            this.OnScanUpdated(scan);
+            this.OnScanUpdated?.Invoke(scan);
         }
     }
 }
